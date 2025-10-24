@@ -20,9 +20,12 @@ import midrangeImage from '@assets/generated_images/Mid-range_smartphone_product
 import budgetImage from '@assets/generated_images/Budget_smartphone_product_image_eac18301.png';
 
 const steps = [
+  'Select Plan',
+  'Select Device',
+  'Choose SIM',
   'Verify Identity',
   'Upload Documents',
-  'Address Info',
+  'Address',
   'Employment',
   'Store',
   'Review',
@@ -71,6 +74,7 @@ export default function CustomerPortal() {
   const [email, setEmail] = useState('');
   const [selectedProduct, setSelectedProduct] = useState<number | null>(null);
   const [selectedPlan, setSelectedPlan] = useState<number | null>(null);
+  const [selectedSIM, setSelectedSIM] = useState<number | null>(null);
   const [idType, setIdType] = useState('');
   const [frontDoc, setFrontDoc] = useState<string>();
   const [backDoc, setBackDoc] = useState<string>();
@@ -94,7 +98,7 @@ export default function CustomerPortal() {
   const [cartId, setCartId] = useState('');
 
   const handleNext = () => {
-    if (currentStep < 7) {
+    if (currentStep < 10) {
       setCurrentStep(currentStep + 1);
       window.scrollTo(0, 0);
     }
@@ -170,11 +174,142 @@ export default function CustomerPortal() {
         </div>
       </header>
 
-      <StepProgress currentStep={currentStep} totalSteps={7} steps={steps} />
+      <StepProgress currentStep={currentStep} totalSteps={10} steps={steps} />
 
       <main className="max-w-4xl mx-auto px-4 md:px-6 py-8">
-        {/* Step 1: Identity Verification */}
+        {/* Step 1: Select Plan */}
         {currentStep === 1 && (
+          <div className="space-y-6">
+            <Card className="p-6 md:p-8">
+              <h2 className="text-2xl font-bold text-foreground mb-2">Select a Plan</h2>
+              <p className="text-muted-foreground mb-6">Choose the plan that best fits your needs</p>
+
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                {mockPlans.map((plan) => (
+                  <Card
+                    key={plan.id}
+                    className={`p-6 cursor-pointer transition-all ${
+                      selectedPlan === plan.id ? 'ring-2 ring-primary' : ''
+                    }`}
+                    onClick={() => setSelectedPlan(plan.id)}
+                  >
+                    <h3 className="font-semibold text-foreground mb-2">{plan.name}</h3>
+                    <div className="text-2xl font-bold text-primary mb-4">₱{plan.price}/mo</div>
+                    <ul className="space-y-2 text-sm text-muted-foreground">
+                      <li className="flex items-center gap-2">
+                        <CheckCircle2 className="w-4 h-4 text-primary" />
+                        {plan.data} Data
+                      </li>
+                      <li className="flex items-center gap-2">
+                        <CheckCircle2 className="w-4 h-4 text-primary" />
+                        {plan.calls} Calls & SMS
+                      </li>
+                      {plan.perks && (
+                        <li className="flex items-center gap-2">
+                          <CheckCircle2 className="w-4 h-4 text-primary" />
+                          {plan.perks}
+                        </li>
+                      )}
+                    </ul>
+                    <Button
+                      className="w-full mt-4"
+                      variant={selectedPlan === plan.id ? 'default' : 'outline'}
+                      data-testid={`button-select-plan-${plan.id}`}
+                    >
+                      {selectedPlan === plan.id ? 'Selected' : 'Select Plan'}
+                    </Button>
+                  </Card>
+                ))}
+              </div>
+            </Card>
+          </div>
+        )}
+
+        {/* Step 2: Select Device */}
+        {currentStep === 2 && (
+          <div className="space-y-6">
+            <Card className="p-6 md:p-8">
+              <h2 className="text-2xl font-bold text-foreground mb-2">Select Your Device</h2>
+              <p className="text-muted-foreground mb-6">Choose from our latest smartphones</p>
+
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                {mockProducts.map((product) => (
+                  <ProductCard
+                    key={product.id}
+                    {...product}
+                    selected={selectedProduct === product.id}
+                    onSelect={() => setSelectedProduct(product.id)}
+                  />
+                ))}
+              </div>
+            </Card>
+          </div>
+        )}
+
+        {/* Step 3: Choose SIM */}
+        {currentStep === 3 && (
+          <Card className="p-6 md:p-8 space-y-6">
+            <div>
+              <h2 className="text-2xl font-bold text-foreground mb-2">Choose Your SIM</h2>
+              <p className="text-muted-foreground">Select your preferred SIM card type</p>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              {[
+                { id: 1, name: 'Nano SIM', description: 'Standard SIM card for most devices' },
+                { id: 2, name: 'eSIM', description: 'Digital SIM, no physical card needed' },
+                { id: 3, name: 'Dual SIM', description: 'Two SIM cards for one device' }
+              ].map((sim) => (
+                <Card
+                  key={sim.id}
+                  className={`p-6 cursor-pointer transition-all ${
+                    selectedSIM === sim.id ? 'ring-2 ring-primary' : ''
+                  }`}
+                  onClick={() => setSelectedSIM(sim.id)}
+                >
+                  <h3 className="font-semibold text-foreground mb-2">{sim.name}</h3>
+                  <p className="text-sm text-muted-foreground mb-4">{sim.description}</p>
+                  <Button
+                    className="w-full"
+                    variant={selectedSIM === sim.id ? 'default' : 'outline'}
+                    data-testid={`button-select-sim-${sim.id}`}
+                  >
+                    {selectedSIM === sim.id ? 'Selected' : 'Select'}
+                  </Button>
+                </Card>
+              ))}
+            </div>
+
+            {selectedProduct && selectedPlan && selectedSIM && (
+              <Card className="p-6 bg-muted">
+                <h3 className="font-semibold text-foreground mb-4">Your Cart Summary</h3>
+                <div className="space-y-2 text-sm">
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Device:</span>
+                    <span className="text-foreground font-medium">
+                      {mockProducts.find(p => p.id === selectedProduct)?.name}
+                    </span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Plan:</span>
+                    <span className="text-foreground font-medium">
+                      {mockPlans.find(p => p.id === selectedPlan)?.name}
+                    </span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">SIM Type:</span>
+                    <span className="text-foreground font-medium">
+                      {['Nano SIM', 'eSIM', 'Dual SIM'][selectedSIM - 1]}
+                    </span>
+                  </div>
+                </div>
+              </Card>
+            )}
+          </Card>
+        )}
+
+        {/* Step 4: Identity Verification */}
+        {currentStep === 4 && (
           <Card className="p-6 md:p-8 space-y-6">
             <div>
               <h2 className="text-2xl font-bold text-foreground mb-2">Identity Verification</h2>
@@ -206,8 +341,8 @@ export default function CustomerPortal() {
           </Card>
         )}
 
-        {/* Step 2: Document Upload */}
-        {currentStep === 2 && (
+        {/* Step 5: Document Upload */}
+        {currentStep === 5 && (
           <Card className="p-6 md:p-8 space-y-6">
             <div>
               <h2 className="text-2xl font-bold text-foreground mb-2">Upload ID Document</h2>
@@ -248,8 +383,8 @@ export default function CustomerPortal() {
           </Card>
         )}
 
-        {/* Step 3: Address Information */}
-        {currentStep === 3 && (
+        {/* Step 6: Address Information */}
+        {currentStep === 6 && (
           <Card className="p-6 md:p-8 space-y-6">
             <div>
               <h2 className="text-2xl font-bold text-foreground mb-2">Address Information</h2>
@@ -342,8 +477,8 @@ export default function CustomerPortal() {
           </Card>
         )}
 
-        {/* Step 4: Employment Information */}
-        {currentStep === 4 && (
+        {/* Step 7: Employment Information */}
+        {currentStep === 7 && (
           <Card className="p-6 md:p-8 space-y-6">
             <div>
               <h2 className="text-2xl font-bold text-foreground mb-2">Employment Information</h2>
@@ -423,8 +558,8 @@ export default function CustomerPortal() {
           </Card>
         )}
 
-        {/* Step 5: Store Assignment */}
-        {currentStep === 5 && (
+        {/* Step 8: Store Assignment */}
+        {currentStep === 8 && (
           <Card className="p-6 md:p-8 space-y-6">
             <div>
               <h2 className="text-2xl font-bold text-foreground mb-2">Collection Store</h2>
@@ -456,8 +591,8 @@ export default function CustomerPortal() {
           </Card>
         )}
 
-        {/* Step 6: Review Application */}
-        {currentStep === 6 && (
+        {/* Step 9: Review Application */}
+        {currentStep === 9 && (
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             <div className="lg:col-span-2 space-y-4">
               <Card className="p-6">
@@ -556,8 +691,8 @@ export default function CustomerPortal() {
           </div>
         )}
 
-        {/* Step 7: Sign & Submit */}
-        {currentStep === 7 && (
+        {/* Step 10: Sign & Submit */}
+        {currentStep === 10 && (
           <div className="max-w-2xl mx-auto space-y-6">
             <Card className="p-6 md:p-8">
               <h2 className="text-2xl font-bold text-foreground mb-2">Sign Your Application</h2>
@@ -576,7 +711,7 @@ export default function CustomerPortal() {
         )}
 
         {/* Navigation Buttons */}
-        {currentStep < 7 && (
+        {currentStep < 10 && (
           <div className="flex justify-between mt-8">
             <Button
               variant="outline"
@@ -590,7 +725,7 @@ export default function CustomerPortal() {
               onClick={handleNext}
               data-testid="button-next"
             >
-              {currentStep === 6 ? 'Proceed to Sign' : 'Continue'}
+              {currentStep === 9 ? 'Proceed to Sign' : 'Continue'}
             </Button>
           </div>
         )}
