@@ -224,18 +224,18 @@ export default function AgentReviewFlow({
                 <ReviewItem label="Agent ID" value={agentId} />
               </ReviewSection>
 
-              {application.status === 'pending' && (
+              {(!application.assignedAgentId || application.assignedAgentId !== agentId) && (
                 <div className="bg-blue-500/10 text-blue-700 border border-blue-300 rounded-md p-4">
                   <p className="text-sm">
-                    <strong>Note:</strong> Clicking "Continue" will assign this application to you and change the status to "submitted".
+                    <strong>Note:</strong> Clicking "Continue" will assign this application to you and update the status to "submitted".
                   </p>
                 </div>
               )}
 
-              {application.status === 'submitted' && application.assignedAgentId === agentId && (
+              {application.assignedAgentId === agentId && (
                 <div className="bg-green-500/10 text-green-700 border border-green-300 rounded-md p-4">
                   <p className="text-sm">
-                    <strong>Already Assigned:</strong> This application is already assigned to you.
+                    <strong>Already Assigned:</strong> This application is already assigned to you. You can continue with the review process.
                   </p>
                 </div>
               )}

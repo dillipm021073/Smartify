@@ -1014,15 +1014,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ error: "Application not found" });
       }
 
-      // Check if application is in "pending" status
-      if (currentApp.status !== "pending") {
+      // Check if application can be assigned
+      // Allow assignment for "pending" or "submitted" status (customer has submitted but not yet picked up by agent)
+      // Also allow if already assigned to the same agent (re-entry scenario)
+      const validStatuses = ["pending", "submitted"];
+      if (!validStatuses.includes(currentApp.status)) {
         return res.status(400).json({
-          error: "Application is not in pending status",
+          error: `Application cannot be assigned. Current status: ${currentApp.status}`,
           currentStatus: currentApp.status
         });
       }
 
-      // Check if already assigned to another agent
+      // Check if already assigned to a DIFFERENT agent
       if (currentApp.assignedAgentId && currentApp.assignedAgentId !== agentId) {
         return res.status(409).json({
           error: "Application is already assigned to another agent",
