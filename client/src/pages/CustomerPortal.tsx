@@ -960,49 +960,50 @@ export default function CustomerPortal() {
 
                   // Save order items (plan + device selections)
                   if (selectedPlan && selectedProduct) {
-                    try {
-                      const planData = plans?.find(p => p.id === selectedPlan);
-                      const deviceData = devices?.find(d => d.id === selectedProduct);
+                    const planData = plans?.find(p => p.id === selectedPlan);
+                    const deviceData = devices?.find(d => d.id === selectedProduct);
 
-                      if (!planData || !deviceData) {
-                        console.error('Plan or device data not found:', { selectedPlan, selectedProduct, planData, deviceData });
-                        alert('Error: Could not find selected plan or device. Please try selecting again.');
-                        return;
+                    if (planData && deviceData) {
+                      try {
+                        const devicePrice = parseFloat(deviceData.basePrice);
+                        const planPrice = parseFloat(planData.price);
+                        const oneTimeCashout = Math.round(devicePrice * 0.13); // 13% down payment
+                        const monthlyPayment = Math.round(devicePrice / planData.durationMonths);
+
+                        console.log('Saving order items:', {
+                          planId: selectedPlan,
+                          deviceId: selectedProduct,
+                          devicePrice: devicePrice.toString(),
+                          planPrice: planPrice.toString(),
+                          oneTimeCashout: oneTimeCashout.toString(),
+                          monthlyPayment: monthlyPayment.toString(),
+                        });
+
+                        await apiRequest("POST", `/api/applications/${application.id}/order-items`, {
+                          planId: selectedPlan,
+                          deviceId: selectedProduct,
+                          devicePrice: devicePrice.toString(),
+                          planPrice: planPrice.toString(),
+                          oneTimeCashout: oneTimeCashout.toString(),
+                          monthlyPayment: monthlyPayment.toString(),
+                        });
+
+                        console.log('✅ Order items saved successfully');
+                      } catch (error) {
+                        console.error('❌ Failed to save order items:', error);
+                        alert(`Warning: Order details could not be saved. Error: ${error instanceof Error ? error.message : 'Unknown error'}. You can continue, but please inform the agent about your plan and device selection.`);
                       }
-
-                      const devicePrice = parseFloat(deviceData.basePrice);
-                      const planPrice = parseFloat(planData.price);
-                      const oneTimeCashout = Math.round(devicePrice * 0.13); // 13% down payment
-                      const monthlyPayment = Math.round(devicePrice / planData.durationMonths);
-
-                      console.log('Saving order items:', {
-                        planId: selectedPlan,
-                        deviceId: selectedProduct,
-                        devicePrice: devicePrice.toString(),
-                        planPrice: planPrice.toString(),
-                        oneTimeCashout: oneTimeCashout.toString(),
-                        monthlyPayment: monthlyPayment.toString(),
+                    } else {
+                      console.error('Plan or device data not found in local state:', {
+                        selectedPlan,
+                        selectedProduct,
+                        hasPlanData: !!planData,
+                        hasDeviceData: !!deviceData
                       });
-
-                      await apiRequest("POST", `/api/applications/${application.id}/order-items`, {
-                        planId: selectedPlan,
-                        deviceId: selectedProduct,
-                        devicePrice: devicePrice.toString(),
-                        planPrice: planPrice.toString(),
-                        oneTimeCashout: oneTimeCashout.toString(),
-                        monthlyPayment: monthlyPayment.toString(),
-                      });
-
-                      console.log('Order items saved successfully');
-                    } catch (error) {
-                      console.error('Failed to save order items:', error);
-                      alert(`Failed to save order details: ${error instanceof Error ? error.message : 'Unknown error'}. Please contact support.`);
-                      return;
+                      alert('Warning: Could not find plan or device details. Please ensure you selected both before continuing.');
                     }
                   } else {
-                    console.error('Missing plan or product selection:', { selectedPlan, selectedProduct });
-                    alert('Error: Please select both a plan and a device before continuing.');
-                    return;
+                    console.warn('⚠️ Plan or device not selected - order items will not be saved');
                   }
 
                   setShowOTP(false);
