@@ -1,26 +1,40 @@
-import { useRef } from "react";
+import { useRef, forwardRef, useImperativeHandle } from "react";
 import SignaturePad from "react-signature-canvas";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { RotateCcw, Check } from "lucide-react";
 
 interface SignatureCanvasProps {
-  onSave: (signature: string) => void;
+  onSave?: (signature: string) => void;
+  onSignatureChange?: (signature: string) => void;
 }
 
-export default function SignatureCanvas({ onSave }: SignatureCanvasProps) {
-  const sigPad = useRef<SignaturePad>(null);
+const SignatureCanvas = forwardRef<SignaturePad | null, SignatureCanvasProps>(
+  ({ onSave, onSignatureChange }, ref) => {
+    const sigPad = useRef<SignaturePad>(null);
 
-  const handleClear = () => {
-    sigPad.current?.clear();
-  };
+    // Expose the signature pad ref to parent
+    useImperativeHandle(ref, () => sigPad.current as SignaturePad);
 
-  const handleSave = () => {
-    if (sigPad.current && !sigPad.current.isEmpty()) {
-      const dataURL = sigPad.current.toDataURL();
-      onSave(dataURL);
-    }
-  };
+    const handleClear = () => {
+      sigPad.current?.clear();
+      // Clear signature in parent state
+      if (onSignatureChange) {
+        onSignatureChange('');
+      }
+    };
+
+    const handleSave = () => {
+      if (sigPad.current && !sigPad.current.isEmpty()) {
+        const dataURL = sigPad.current.toDataURL();
+        if (onSave) {
+          onSave(dataURL);
+        }
+        if (onSignatureChange) {
+          onSignatureChange(dataURL);
+        }
+      }
+    };
 
   return (
     <Card className="p-6 space-y-4">
@@ -66,4 +80,8 @@ export default function SignatureCanvas({ onSave }: SignatureCanvasProps) {
       </p>
     </Card>
   );
-}
+});
+
+SignatureCanvas.displayName = "SignatureCanvas";
+
+export default SignatureCanvas;

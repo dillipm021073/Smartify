@@ -1,0 +1,302 @@
+// Smartify Database Schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// Main Applications Table
+model Application {
+  id                String   @id @default(uuid())
+  cartId            String   @unique @map("cart_id")
+  status            String   @default("pending") // pending, in_review, approved, rejected, submitted
+  email             String
+  emailVerified     Boolean  @default(false) @map("email_verified")
+  assignedNumber    String?  @map("assigned_number")
+  simType           String?  @map("sim_type") // physical, esim
+  signatureUrl      String?  @map("signature_url")
+  submittedAt       DateTime? @map("submitted_at")
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+
+  assignedAgentId   String?  @map("assigned_agent_id")
+  storeId           String?  @map("store_id")
+
+  // Relations
+  customerInfo      CustomerInformation?
+  addresses         Address[]
+  employmentInfo    EmploymentInformation?
+  orderItems        OrderItem[]
+  privacyPrefs      PrivacyPreferences?
+  auditLogs         AuditLog[]
+  agent             Agent?   @relation(fields: [assignedAgentId], references: [id])
+  store             Store?   @relation(fields: [storeId], references: [id])
+
+  @@index([cartId])
+  @@index([email])
+  @@index([status])
+  @@map("applications")
+}
+
+// Customer Identity Information
+model CustomerInformation {
+  id                    String   @id @default(uuid())
+  applicationId         String   @unique @map("application_id")
+  idType                String   @map("id_type")
+  idFrontUrl            String   @map("id_front_url")
+  idBackUrl             String   @map("id_back_url")
+  nationalId            String?  @map("national_id")
+  idVerificationStatus  String   @default("pending") @map("id_verification_status")
+  createdAt             DateTime @default(now()) @map("created_at")
+  updatedAt             DateTime @updatedAt @map("updated_at")
+
+  application           Application @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+
+  @@index([nationalId])
+  @@map("customer_information")
+}
+
+// Address Information
+model Address {
+  id                String   @id @default(uuid())
+  applicationId     String   @map("application_id")
+  addressType       String   @map("address_type") // residential, employment
+  typeDetail        String?  @map("type_detail") // house, condominium, building
+  houseLotNumber    String   @map("house_lot_number")
+  streetName        String   @map("street_name")
+  villageSubdivision String? @map("village_subdivision")
+  provinceId        Int?     @map("province_id")
+  cityId            Int?     @map("city_id")
+  barangayId        Int?     @map("barangay_id")
+  zipCode           String?  @map("zip_code")
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+
+  application       Application @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  province          Province?   @relation(fields: [provinceId], references: [id])
+  city              City?       @relation(fields: [cityId], references: [id])
+  barangay          Barangay?   @relation(fields: [barangayId], references: [id])
+
+  @@map("addresses")
+}
+
+// Employment Information
+model EmploymentInformation {
+  id                   String    @id @default(uuid())
+  applicationId        String    @unique @map("application_id")
+  employmentType       String    @map("employment_type") // full-time, self-employed, unemployed
+  employerName         String?   @map("employer_name")
+  employerContact      String?   @map("employer_contact")
+  jobTitle             String?   @map("job_title")
+  positionLevel        String?   @map("position_level")
+  monthlyIncomeRange   String?   @map("monthly_income_range")
+  employmentStartDate  DateTime? @map("employment_start_date")
+  sameAsResidential    Boolean   @default(false) @map("same_as_residential")
+  createdAt            DateTime  @default(now()) @map("created_at")
+  updatedAt            DateTime  @updatedAt @map("updated_at")
+
+  application          Application @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+
+  @@map("employment_information")
+}
+
+// Plans (SIM with Device Plans)
+model Plan {
+  id              String   @id @default(uuid())
+  name            String
+  price           Decimal  @db.Decimal(10, 2)
+  durationMonths  Int      @map("duration_months")
+  features        Json?
+  isActive        Boolean  @default(true) @map("is_active")
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  orderItems      OrderItem[]
+
+  @@map("plans")
+}
+
+// Devices
+model Device {
+  id          String   @id @default(uuid())
+  name        String
+  brand       String
+  model       String
+  basePrice   Decimal  @db.Decimal(10, 2) @map("base_price")
+  description String?
+  images      Json?
+  isActive    Boolean  @default(true) @map("is_active")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  configurations DeviceConfiguration[]
+  orderItems     OrderItem[]
+
+  @@map("devices")
+}
+
+// Device Configurations (Color, Storage variants)
+model DeviceConfiguration {
+  id              String   @id @default(uuid())
+  deviceId        String   @map("device_id")
+  color           String?
+  storage         String?
+  priceAdjustment Decimal  @default(0) @db.Decimal(10, 2) @map("price_adjustment")
+  stockQuantity   Int      @default(0) @map("stock_quantity")
+  isActive        Boolean  @default(true) @map("is_active")
+
+  device          Device   @relation(fields: [deviceId], references: [id])
+  orderItems      OrderItem[]
+
+  @@map("device_configurations")
+}
+
+// Order Items
+model OrderItem {
+  id              String   @id @default(uuid())
+  applicationId   String   @map("application_id")
+  planId          String   @map("plan_id")
+  deviceId        String   @map("device_id")
+  deviceConfigId  String?  @map("device_config_id")
+  devicePrice     Decimal  @db.Decimal(10, 2) @map("device_price")
+  planPrice       Decimal  @db.Decimal(10, 2) @map("plan_price")
+  oneTimeCashout  Decimal  @db.Decimal(10, 2) @map("one_time_cashout")
+  monthlyPayment  Decimal  @db.Decimal(10, 2) @map("monthly_payment")
+  createdAt       DateTime @default(now()) @map("created_at")
+
+  application     Application          @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  plan            Plan                 @relation(fields: [planId], references: [id])
+  device          Device               @relation(fields: [deviceId], references: [id])
+  deviceConfig    DeviceConfiguration? @relation(fields: [deviceConfigId], references: [id])
+
+  @@map("order_items")
+}
+
+// Location - Provinces
+model Province {
+  id        Int      @id @default(autoincrement())
+  name      String
+  code      String?
+
+  cities    City[]
+  addresses Address[]
+
+  @@map("provinces")
+}
+
+// Location - Cities
+model City {
+  id          Int      @id @default(autoincrement())
+  provinceId  Int      @map("province_id")
+  name        String
+  code        String?
+
+  province    Province   @relation(fields: [provinceId], references: [id])
+  barangays   Barangay[]
+  addresses   Address[]
+  stores      Store[]
+
+  @@map("cities")
+}
+
+// Location - Barangays
+model Barangay {
+  id        Int      @id @default(autoincrement())
+  cityId    Int      @map("city_id")
+  name      String
+  zipCode   String?  @map("zip_code")
+
+  city      City     @relation(fields: [cityId], references: [id])
+  addresses Address[]
+
+  @@map("barangays")
+}
+
+// Stores
+model Store {
+  id           String        @id @default(uuid())
+  name         String
+  cityId       Int?          @map("city_id")
+  address      String?
+  isActive     Boolean       @default(true) @map("is_active")
+
+  city         City?         @relation(fields: [cityId], references: [id])
+  applications Application[]
+  agents       Agent[]
+
+  @@map("stores")
+}
+
+// Agents (Staff who process applications)
+model Agent {
+  id           String        @id @default(uuid())
+  username     String        @unique
+  email        String        @unique
+  passwordHash String        @map("password_hash")
+  fullName     String?       @map("full_name")
+  storeId      String?       @map("store_id")
+  role         String        @default("agent")
+  isActive     Boolean       @default(true) @map("is_active")
+  createdAt    DateTime      @default(now()) @map("created_at")
+
+  store        Store?        @relation(fields: [storeId], references: [id])
+  applications Application[]
+  auditLogs    AuditLog[]
+
+  @@map("agents")
+}
+
+// Privacy Preferences
+model PrivacyPreferences {
+  id                         String      @id @default(uuid())
+  applicationId              String      @unique @map("application_id")
+  productOffers              Boolean     @default(false) @map("product_offers")
+  trustedPartners            Boolean     @default(false) @map("trusted_partners")
+  customization              Boolean     @default(false)
+  sisterCompanies            Boolean     @default(false) @map("sister_companies")
+  businessPartners           Boolean     @default(false) @map("business_partners")
+  tapasilogSolutions         Boolean     @default(false) @map("tapasilog_solutions")
+  termsAccepted              Boolean     @default(false) @map("terms_accepted")
+  privacyNoticeAccepted      Boolean     @default(false) @map("privacy_notice_accepted")
+  subscriberDeclarationAccepted Boolean  @default(false) @map("subscriber_declaration_accepted")
+  createdAt                  DateTime    @default(now()) @map("created_at")
+
+  application                Application @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+
+  @@map("privacy_preferences")
+}
+
+// Audit Logs
+model AuditLog {
+  id            String   @id @default(uuid())
+  applicationId String?  @map("application_id")
+  agentId       String?  @map("agent_id")
+  action        String
+  changes       Json?
+  ipAddress     String?  @map("ip_address")
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  application   Application? @relation(fields: [applicationId], references: [id])
+  agent         Agent?       @relation(fields: [agentId], references: [id])
+
+  @@map("audit_logs")
+}
+
+// OTP Verifications
+model OtpVerification {
+  id        String   @id @default(uuid())
+  email     String
+  otpCode   String   @map("otp_code")
+  expiresAt DateTime @map("expires_at")
+  verified  Boolean  @default(false)
+  attempts  Int      @default(0)
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([email])
+  @@index([expiresAt])
+  @@map("otp_verifications")
+}

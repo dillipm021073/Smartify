@@ -18,7 +18,21 @@ import logoImage from '@assets/generated_images/Smartify_company_logo_b23637a9.p
 import flagshipImage from '@assets/generated_images/Flagship_smartphone_product_image_3ad87b79.png';
 import midrangeImage from '@assets/generated_images/Mid-range_smartphone_product_image_241ea1c6.png';
 import budgetImage from '@assets/generated_images/Budget_smartphone_product_image_eac18301.png';
+import {
+  usePlans,
+  useDevices,
+  useProvinces,
+  useCities,
+  useBarangays,
+  useSendOtp,
+  useVerifyOtp,
+  useCreateApplication,
+  useSubmitApplication,
+  apiRequest
+} from "@/lib/api";
 
+// Customer portal only has 7 steps
+// Steps 8-10 (Store, Review, Sign) moved to Agent Portal
 const steps = [
   'Select Plan',
   'Select Device',
@@ -26,13 +40,11 @@ const steps = [
   'Verify Identity',
   'Upload Documents',
   'Address',
-  'Employment',
-  'Store',
-  'Review',
-  'Sign'
+  'Employment'
 ];
 
-// todo: remove mock functionality
+// Mock products used for placeholder images only
+// (Devices data comes from API, but we still use these images)
 const mockProducts = [
   {
     id: 1,
@@ -61,26 +73,40 @@ const mockProducts = [
   }
 ];
 
-// todo: remove mock functionality
-const mockPlans = [
-  { id: 1, name: 'Unlimited Data Plan', price: 999, data: 'Unlimited', calls: 'Unlimited' },
-  { id: 2, name: 'Premium Plan', price: 1499, data: 'Unlimited', calls: 'Unlimited', perks: '50GB Mobile Hotspot' },
-  { id: 3, name: 'Basic Plan', price: 599, data: '20GB', calls: 'Unlimited' }
-];
-
 export default function CustomerPortal() {
+  // Fetch real plans and devices from API
+  const { data: plans, isLoading: plansLoading, error: plansError } = usePlans();
+  const { data: devices, isLoading: devicesLoading, error: devicesError } = useDevices();
+
   const [currentStep, setCurrentStep] = useState(1);
   const [showOTP, setShowOTP] = useState(false);
   const [email, setEmail] = useState('');
-  const [selectedProduct, setSelectedProduct] = useState<number | null>(null);
-  const [selectedPlan, setSelectedPlan] = useState<number | null>(null);
+  const [selectedProduct, setSelectedProduct] = useState<string | null>(null);
+  const [selectedPlan, setSelectedPlan] = useState<string | null>(null);
   const [selectedSIM, setSelectedSIM] = useState<number | null>(null);
   const [idType, setIdType] = useState('');
+  const [idNumber, setIdNumber] = useState('');
   const [frontDoc, setFrontDoc] = useState<string>();
   const [backDoc, setBackDoc] = useState<string>();
   const [employmentType, setEmploymentType] = useState('full-time');
-  const [province, setProvince] = useState('');
-  const [city, setCity] = useState('');
+  const [provinceId, setProvinceId] = useState<number | null>(null);
+  const [cityId, setCityId] = useState<number | null>(null);
+  const [barangayId, setBarangayId] = useState<number | null>(null);
+
+  // Fetch locations based on selections
+  const { data: provinces } = useProvinces();
+  const { data: cities } = useCities(provinceId);
+  const { data: barangays } = useBarangays(cityId);
+
+  // OTP mutations
+  const sendOtpMutation = useSendOtp();
+  const verifyOtpMutation = useVerifyOtp();
+
+  // Application mutations
+  const createApplicationMutation = useCreateApplication();
+  const submitApplicationMutation = useSubmitApplication();
+
+  const [applicationId, setApplicationId] = useState<string | null>(null);
   const [privacyChecks, setPrivacyChecks] = useState({
     offers: false,
     partners: false,
@@ -97,8 +123,22 @@ export default function CustomerPortal() {
   const [submitted, setSubmitted] = useState(false);
   const [cartId, setCartId] = useState('');
 
-  const handleNext = () => {
-    if (currentStep < 10) {
+  const handleNext = async () => {
+    // Special handling for Step 5 -> Step 6: Save ID information
+    if (currentStep === 5 && applicationId) {
+      try {
+        // Update application with customer ID information
+        await apiRequest("PUT", `/api/applications/${applicationId}`, {
+          customerIdType: idType,
+          customerIdNumber: idNumber
+        });
+      } catch (error) {
+        console.error('Failed to save ID information:', error);
+        // Continue anyway - this is not critical
+      }
+    }
+
+    if (currentStep < 7) {
       setCurrentStep(currentStep + 1);
       window.scrollTo(0, 0);
     }
@@ -124,16 +164,23 @@ export default function CustomerPortal() {
   };
 
   const handleSubmit = () => {
-    const timestamp = Date.now();
-    const random = Math.floor(Math.random() * 10000);
-    const newCartId = `CART-${timestamp}${random}`;
-    setCartId(newCartId);
-    setSubmitted(true);
-    console.log('Application submitted with Cart ID:', newCartId);
+    if (!applicationId) {
+      alert('No application found. Please start over.');
+      return;
+    }
+
+    submitApplicationMutation.mutate({ id: applicationId }, {
+      onSuccess: () => {
+        setSubmitted(true);
+      },
+      onError: (error) => {
+        alert(`Failed to submit application: ${error.message}`);
+      }
+    });
   };
 
-  const selectedProductData = mockProducts.find(p => p.id === selectedProduct);
-  const selectedPlanData = mockPlans.find(p => p.id === selectedPlan);
+  const selectedProductData = devices?.find(d => d.id === selectedProduct);
+  const selectedPlanData = plans?.find(p => p.id === selectedPlan);
 
   if (submitted) {
     return (
@@ -151,11 +198,11 @@ export default function CustomerPortal() {
             </p>
           </div>
           <div className="bg-muted p-4 rounded-md">
-            <p className="text-sm text-muted-foreground mb-1">Your Cart ID</p>
-            <p className="text-2xl font-bold text-primary" data-testid="text-cart-id">{cartId}</p>
+            <p className="text-sm text-muted-foreground mb-1">Your Application ID</p>
+            <p className="text-2xl font-bold text-primary" data-testid="text-application-id">{applicationId}</p>
           </div>
           <p className="text-sm text-muted-foreground">
-            Please save this Cart ID for tracking your application. You will also receive a confirmation email shortly.
+            Please save this Application ID for tracking your application. An agent will review your application and provide you with a Cart ID once approved.
           </p>
           <Button onClick={() => window.location.reload()} className="w-full" data-testid="button-new-application">
             Start New Application
@@ -174,7 +221,7 @@ export default function CustomerPortal() {
         </div>
       </header>
 
-      <StepProgress currentStep={currentStep} totalSteps={10} steps={steps} />
+      <StepProgress currentStep={currentStep} totalSteps={7} steps={steps} />
 
       <main className="max-w-4xl mx-auto px-4 md:px-6 py-8">
         {/* Step 1: Select Plan */}
@@ -184,43 +231,69 @@ export default function CustomerPortal() {
               <h2 className="text-2xl font-bold text-foreground mb-2">Select a Plan</h2>
               <p className="text-muted-foreground mb-6">Choose the plan that best fits your needs</p>
 
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                {mockPlans.map((plan) => (
-                  <Card
-                    key={plan.id}
-                    className={`p-6 cursor-pointer transition-all ${
-                      selectedPlan === plan.id ? 'ring-2 ring-primary' : ''
-                    }`}
-                    onClick={() => setSelectedPlan(plan.id)}
-                  >
-                    <h3 className="font-semibold text-foreground mb-2">{plan.name}</h3>
-                    <div className="text-2xl font-bold text-primary mb-4">₱{plan.price}/mo</div>
-                    <ul className="space-y-2 text-sm text-muted-foreground">
-                      <li className="flex items-center gap-2">
-                        <CheckCircle2 className="w-4 h-4 text-primary" />
-                        {plan.data} Data
-                      </li>
-                      <li className="flex items-center gap-2">
-                        <CheckCircle2 className="w-4 h-4 text-primary" />
-                        {plan.calls} Calls & SMS
-                      </li>
-                      {plan.perks && (
-                        <li className="flex items-center gap-2">
-                          <CheckCircle2 className="w-4 h-4 text-primary" />
-                          {plan.perks}
-                        </li>
-                      )}
-                    </ul>
-                    <Button
-                      className="w-full mt-4"
-                      variant={selectedPlan === plan.id ? 'default' : 'outline'}
-                      data-testid={`button-select-plan-${plan.id}`}
+              {plansLoading && (
+                <div className="text-center py-8 text-muted-foreground">
+                  Loading plans...
+                </div>
+              )}
+
+              {plansError && (
+                <div className="text-center py-8 text-destructive">
+                  Error loading plans. Please try again.
+                </div>
+              )}
+
+              {plans && plans.length > 0 && (
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  {plans.map((plan) => (
+                    <Card
+                      key={plan.id}
+                      className={`p-6 cursor-pointer transition-all ${
+                        selectedPlan === plan.id ? 'ring-2 ring-primary' : ''
+                      }`}
+                      onClick={() => setSelectedPlan(plan.id)}
                     >
-                      {selectedPlan === plan.id ? 'Selected' : 'Select Plan'}
-                    </Button>
-                  </Card>
-                ))}
-              </div>
+                      <h3 className="font-semibold text-foreground mb-2">{plan.name}</h3>
+                      <div className="text-2xl font-bold text-primary mb-4">
+                        ₱{parseFloat(plan.price).toFixed(0)}/mo
+                      </div>
+                      <ul className="space-y-2 text-sm text-muted-foreground">
+                        {plan.features.data && (
+                          <li className="flex items-center gap-2">
+                            <CheckCircle2 className="w-4 h-4 text-primary" />
+                            {plan.features.data}
+                          </li>
+                        )}
+                        {plan.features.calls && (
+                          <li className="flex items-center gap-2">
+                            <CheckCircle2 className="w-4 h-4 text-primary" />
+                            {plan.features.calls}
+                          </li>
+                        )}
+                        {plan.features.landline && (
+                          <li className="flex items-center gap-2">
+                            <CheckCircle2 className="w-4 h-4 text-primary" />
+                            {plan.features.landline}
+                          </li>
+                        )}
+                        {plan.features.streaming && (
+                          <li className="flex items-center gap-2">
+                            <CheckCircle2 className="w-4 h-4 text-primary" />
+                            {plan.features.streaming}
+                          </li>
+                        )}
+                      </ul>
+                      <Button
+                        className="w-full mt-4"
+                        variant={selectedPlan === plan.id ? 'default' : 'outline'}
+                        data-testid={`button-select-plan-${plan.id}`}
+                      >
+                        {selectedPlan === plan.id ? 'Selected' : 'Select Plan'}
+                      </Button>
+                    </Card>
+                  ))}
+                </div>
+              )}
             </Card>
           </div>
         )}
@@ -232,16 +305,41 @@ export default function CustomerPortal() {
               <h2 className="text-2xl font-bold text-foreground mb-2">Select Your Device</h2>
               <p className="text-muted-foreground mb-6">Choose from our latest smartphones</p>
 
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                {mockProducts.map((product) => (
-                  <ProductCard
-                    key={product.id}
-                    {...product}
-                    selected={selectedProduct === product.id}
-                    onSelect={() => setSelectedProduct(product.id)}
-                  />
-                ))}
-              </div>
+              {devicesLoading && (
+                <div className="text-center py-8 text-muted-foreground">
+                  Loading devices...
+                </div>
+              )}
+
+              {devicesError && (
+                <div className="text-center py-8 text-destructive">
+                  Error loading devices. Please try again.
+                </div>
+              )}
+
+              {devices && devices.length > 0 && (
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                  {devices.map((device, index) => {
+                    // Use placeholder images from mockProducts for display
+                    const images = [flagshipImage, midrangeImage, budgetImage];
+                    const placeholderImage = images[index % images.length];
+
+                    return (
+                      <ProductCard
+                        key={device.id}
+                        image={placeholderImage}
+                        name={device.name}
+                        price={parseFloat(device.basePrice)}
+                        monthlyPayment={Math.round(parseFloat(device.basePrice) / 24)}
+                        features={[device.description]}
+                        popular={index === 0}
+                        selected={selectedProduct === device.id}
+                        onSelect={() => setSelectedProduct(device.id)}
+                      />
+                    );
+                  })}
+                </div>
+              )}
             </Card>
           </div>
         )}
@@ -287,13 +385,13 @@ export default function CustomerPortal() {
                   <div className="flex justify-between">
                     <span className="text-muted-foreground">Device:</span>
                     <span className="text-foreground font-medium">
-                      {mockProducts.find(p => p.id === selectedProduct)?.name}
+                      {devices?.find(d => d.id === selectedProduct)?.name}
                     </span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-muted-foreground">Plan:</span>
                     <span className="text-foreground font-medium">
-                      {mockPlans.find(p => p.id === selectedPlan)?.name}
+                      {plans?.find(p => p.id === selectedPlan)?.name}
                     </span>
                   </div>
                   <div className="flex justify-between">
@@ -329,13 +427,22 @@ export default function CustomerPortal() {
                 />
               </div>
 
-              <Button 
-                onClick={() => setShowOTP(true)} 
+              <Button
+                onClick={() => {
+                  sendOtpMutation.mutate({ email }, {
+                    onSuccess: () => {
+                      setShowOTP(true);
+                    },
+                    onError: (error) => {
+                      alert(`Failed to send OTP: ${error.message}`);
+                    }
+                  });
+                }}
                 className="w-full"
-                disabled={!email}
+                disabled={!email || sendOtpMutation.isPending}
                 data-testid="button-send-otp"
               >
-                Send Verification Code
+                {sendOtpMutation.isPending ? 'Sending...' : 'Send Verification Code'}
               </Button>
             </div>
           </Card>
@@ -350,20 +457,37 @@ export default function CustomerPortal() {
             </div>
 
             <div className="space-y-4">
-              <div className="space-y-2">
-                <Label>ID Type</Label>
-                <Select value={idType} onValueChange={setIdType}>
-                  <SelectTrigger data-testid="select-id-type">
-                    <SelectValue placeholder="Select ID type" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="passport">Philippine Passport</SelectItem>
-                    <SelectItem value="national-id">National ID</SelectItem>
-                    <SelectItem value="drivers-license">Driver's License</SelectItem>
-                    <SelectItem value="umid">UMID</SelectItem>
-                    <SelectItem value="sss">SSS ID</SelectItem>
-                  </SelectContent>
-                </Select>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>ID Type</Label>
+                  <Select value={idType} onValueChange={setIdType}>
+                    <SelectTrigger data-testid="select-id-type">
+                      <SelectValue placeholder="Select ID type" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="passport">Philippine Passport</SelectItem>
+                      <SelectItem value="national-id">National ID</SelectItem>
+                      <SelectItem value="drivers-license">Driver's License</SelectItem>
+                      <SelectItem value="umid">UMID</SelectItem>
+                      <SelectItem value="sss">SSS ID</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="id-number">ID Number</Label>
+                  <Input
+                    id="id-number"
+                    type="text"
+                    placeholder="Enter your ID number"
+                    value={idNumber}
+                    onChange={(e) => setIdNumber(e.target.value)}
+                    data-testid="input-id-number"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Enter the ID number as shown on your document
+                  </p>
+                </div>
               </div>
 
               <DocumentUpload
@@ -423,15 +547,23 @@ export default function CustomerPortal() {
 
               <div className="space-y-2">
                 <Label>Province</Label>
-                <Select value={province} onValueChange={setProvince}>
+                <Select
+                  value={provinceId?.toString()}
+                  onValueChange={(value) => {
+                    setProvinceId(parseInt(value));
+                    setCityId(null);
+                    setBarangayId(null);
+                  }}
+                >
                   <SelectTrigger data-testid="select-province">
                     <SelectValue placeholder="Select province" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="metro-manila">Metro Manila</SelectItem>
-                    <SelectItem value="cavite">Cavite</SelectItem>
-                    <SelectItem value="bulacan">Bulacan</SelectItem>
-                    <SelectItem value="cebu">Cebu</SelectItem>
+                    {provinces?.map((province) => (
+                      <SelectItem key={province.id} value={province.id.toString()}>
+                        {province.name}
+                      </SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </div>
@@ -439,30 +571,42 @@ export default function CustomerPortal() {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label>City</Label>
-                  <Select value={city} onValueChange={setCity} disabled={!province}>
+                  <Select
+                    value={cityId?.toString()}
+                    onValueChange={(value) => {
+                      setCityId(parseInt(value));
+                      setBarangayId(null);
+                    }}
+                    disabled={!provinceId}
+                  >
                     <SelectTrigger data-testid="select-city">
                       <SelectValue placeholder="Select city" />
                     </SelectTrigger>
                     <SelectContent>
-                      {province === 'metro-manila' && (
-                        <>
-                          <SelectItem value="makati">Makati City</SelectItem>
-                          <SelectItem value="manila">Manila City</SelectItem>
-                          <SelectItem value="quezon">Quezon City</SelectItem>
-                        </>
-                      )}
+                      {cities?.map((city) => (
+                        <SelectItem key={city.id} value={city.id.toString()}>
+                          {city.name}
+                        </SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
                 </div>
                 <div className="space-y-2">
                   <Label>Barangay</Label>
-                  <Select disabled={!city}>
+                  <Select
+                    value={barangayId?.toString()}
+                    onValueChange={(value) => setBarangayId(parseInt(value))}
+                    disabled={!cityId}
+                  >
                     <SelectTrigger data-testid="select-barangay">
                       <SelectValue placeholder="Select barangay" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="centro">Barangay Centro</SelectItem>
-                      <SelectItem value="poblacion">Barangay Poblacion</SelectItem>
+                      {barangays?.map((barangay) => (
+                        <SelectItem key={barangay.id} value={barangay.id.toString()}>
+                          {barangay.name}
+                        </SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
                 </div>
@@ -470,14 +614,19 @@ export default function CustomerPortal() {
 
               <div className="space-y-2">
                 <Label htmlFor="zip">Zip Code</Label>
-                <Input id="zip" value="1200" disabled data-testid="input-zip" />
-                <p className="text-xs text-muted-foreground">Auto-populated based on selected location</p>
+                <Input
+                  id="zip"
+                  value={barangays?.find(b => b.id === barangayId)?.zipCode || ''}
+                  disabled
+                  data-testid="input-zip"
+                />
+                <p className="text-xs text-muted-foreground">Auto-populated based on selected barangay</p>
               </div>
             </div>
           </Card>
         )}
 
-        {/* Step 7: Employment Information */}
+        {/* Step 7: Employment Information - FINAL STEP FOR CUSTOMER */}
         {currentStep === 7 && (
           <Card className="p-6 md:p-8 space-y-6">
             <div>
@@ -555,11 +704,26 @@ export default function CustomerPortal() {
                 </>
               )}
             </div>
+
+            {/* Info box about next steps */}
+            <Card className="p-4 bg-primary/5 border-primary/20">
+              <div className="flex gap-3">
+                <CheckCircle2 className="w-5 h-5 text-primary flex-shrink-0 mt-0.5" />
+                <div className="space-y-1">
+                  <p className="text-sm font-medium text-foreground">Almost Done!</p>
+                  <p className="text-sm text-muted-foreground">
+                    After submitting, an agent will review your application and guide you through the final steps.
+                  </p>
+                </div>
+              </div>
+            </Card>
           </Card>
         )}
 
-        {/* Step 8: Store Assignment */}
-        {currentStep === 8 && (
+        {/* REMOVED: Step 8, 9, 10 moved to Agent Portal */}
+
+        {/* Step 8: Store Assignment - MOVED TO AGENT PORTAL */}
+        {false && currentStep === 8 && (
           <Card className="p-6 md:p-8 space-y-6">
             <div>
               <h2 className="text-2xl font-bold text-foreground mb-2">Collection Store</h2>
@@ -591,8 +755,8 @@ export default function CustomerPortal() {
           </Card>
         )}
 
-        {/* Step 9: Review Application */}
-        {currentStep === 9 && (
+        {/* Step 9: Review Application - MOVED TO AGENT PORTAL */}
+        {false && currentStep === 9 && (
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             <div className="lg:col-span-2 space-y-4">
               <Card className="p-6">
@@ -603,9 +767,9 @@ export default function CustomerPortal() {
 
                 <div className="space-y-4">
                   <ReviewSection title="Product Details" defaultOpen>
-                    <ReviewItem label="Device" value={selectedProductData?.name || 'Premium Flagship - 256GB'} />
-                    <ReviewItem label="Plan" value={selectedPlanData?.name || 'Unlimited Data Plan'} />
-                    <ReviewItem label="Contract" value="24 months" />
+                    <ReviewItem label="Device" value={selectedProductData?.name || 'Device Not Selected'} />
+                    <ReviewItem label="Plan" value={selectedPlanData?.name || 'Plan Not Selected'} />
+                    <ReviewItem label="Contract" value={selectedPlanData ? `${selectedPlanData.durationMonths} months` : '24 months'} />
                   </ReviewSection>
 
                   <ReviewSection title="Customer Information">
@@ -680,19 +844,26 @@ export default function CustomerPortal() {
             <div className="lg:col-span-1">
               <PaymentSummary
                 items={[
-                  { label: selectedProductData?.name || 'Premium Flagship', amount: selectedProductData?.price || 45999 },
-                  { label: selectedPlanData?.name || 'Unlimited Data Plan', amount: selectedPlanData?.price || 999, description: '24 months contract' },
+                  {
+                    label: selectedProductData?.name || 'Device Not Selected',
+                    amount: selectedProductData ? parseFloat(selectedProductData.basePrice) : 0
+                  },
+                  {
+                    label: selectedPlanData?.name || 'Plan Not Selected',
+                    amount: selectedPlanData ? parseFloat(selectedPlanData.price) : 0,
+                    description: selectedPlanData ? `${selectedPlanData.durationMonths} months contract` : ''
+                  },
                   { label: 'SIM Activation', amount: 100 }
                 ]}
                 oneTimeCashout={5999}
-                monthlyPayment={selectedProductData?.monthlyPayment || 1917}
+                monthlyPayment={selectedProductData ? Math.round(parseFloat(selectedProductData.basePrice) / 24) : 0}
               />
             </div>
           </div>
         )}
 
-        {/* Step 10: Sign & Submit */}
-        {currentStep === 10 && (
+        {/* Step 10: Sign & Submit - MOVED TO AGENT PORTAL */}
+        {false && currentStep === 10 && (
           <div className="max-w-2xl mx-auto space-y-6">
             <Card className="p-6 md:p-8">
               <h2 className="text-2xl font-bold text-foreground mb-2">Sign Your Application</h2>
@@ -711,7 +882,7 @@ export default function CustomerPortal() {
         )}
 
         {/* Navigation Buttons */}
-        {currentStep < 10 && (
+        {currentStep < 7 && (
           <div className="flex justify-between mt-8">
             <Button
               variant="outline"
@@ -725,7 +896,45 @@ export default function CustomerPortal() {
               onClick={handleNext}
               data-testid="button-next"
             >
-              {currentStep === 9 ? 'Proceed to Sign' : 'Continue'}
+              Continue
+            </Button>
+          </div>
+        )}
+
+        {/* Final Submit Button - Step 7 */}
+        {currentStep === 7 && (
+          <div className="flex justify-between mt-8">
+            <Button
+              variant="outline"
+              onClick={handleBack}
+              data-testid="button-back"
+            >
+              Back
+            </Button>
+            <Button
+              onClick={() => {
+                // Save application as pending
+                if (!applicationId) {
+                  alert('No application found. Please start over.');
+                  return;
+                }
+
+                // TODO: Save all form data to backend
+                // For now, just update status to pending and show success
+                submitApplicationMutation.mutate({ id: applicationId }, {
+                  onSuccess: () => {
+                    setSubmitted(true);
+                  },
+                  onError: (error) => {
+                    alert(`Failed to submit application: ${error.message}`);
+                  }
+                });
+              }}
+              disabled={submitApplicationMutation.isPending}
+              className="bg-primary"
+              data-testid="button-submit-application"
+            >
+              {submitApplicationMutation.isPending ? 'Submitting...' : 'Submit Application'}
             </Button>
           </div>
         )}
@@ -735,12 +944,91 @@ export default function CustomerPortal() {
         isOpen={showOTP}
         onClose={() => setShowOTP(false)}
         onVerify={(code) => {
-          console.log('OTP verified:', code);
-          setShowOTP(false);
-          handleNext();
+          verifyOtpMutation.mutate({ email, otpCode: code }, {
+            onSuccess: () => {
+              // Create application after OTP verification
+              const simType = selectedSIM === 1 ? 'physical' : selectedSIM === 2 ? 'esim' : 'dual';
+
+              // Create application (ID info will be added in Step 5)
+              createApplicationMutation.mutate({
+                email,
+                simType
+              }, {
+                onSuccess: async (application) => {
+                  setApplicationId(application.id);
+                  setCartId(application.cartId);
+
+                  // Save order items (plan + device selections)
+                  if (selectedPlan && selectedProduct) {
+                    try {
+                      const planData = plans?.find(p => p.id === selectedPlan);
+                      const deviceData = devices?.find(d => d.id === selectedProduct);
+
+                      if (!planData || !deviceData) {
+                        console.error('Plan or device data not found:', { selectedPlan, selectedProduct, planData, deviceData });
+                        alert('Error: Could not find selected plan or device. Please try selecting again.');
+                        return;
+                      }
+
+                      const devicePrice = parseFloat(deviceData.basePrice);
+                      const planPrice = parseFloat(planData.price);
+                      const oneTimeCashout = Math.round(devicePrice * 0.13); // 13% down payment
+                      const monthlyPayment = Math.round(devicePrice / planData.durationMonths);
+
+                      console.log('Saving order items:', {
+                        planId: selectedPlan,
+                        deviceId: selectedProduct,
+                        devicePrice: devicePrice.toString(),
+                        planPrice: planPrice.toString(),
+                        oneTimeCashout: oneTimeCashout.toString(),
+                        monthlyPayment: monthlyPayment.toString(),
+                      });
+
+                      await apiRequest("POST", `/api/applications/${application.id}/order-items`, {
+                        planId: selectedPlan,
+                        deviceId: selectedProduct,
+                        devicePrice: devicePrice.toString(),
+                        planPrice: planPrice.toString(),
+                        oneTimeCashout: oneTimeCashout.toString(),
+                        monthlyPayment: monthlyPayment.toString(),
+                      });
+
+                      console.log('Order items saved successfully');
+                    } catch (error) {
+                      console.error('Failed to save order items:', error);
+                      alert(`Failed to save order details: ${error instanceof Error ? error.message : 'Unknown error'}. Please contact support.`);
+                      return;
+                    }
+                  } else {
+                    console.error('Missing plan or product selection:', { selectedPlan, selectedProduct });
+                    alert('Error: Please select both a plan and a device before continuing.');
+                    return;
+                  }
+
+                  setShowOTP(false);
+                  handleNext();
+                },
+                onError: (error) => {
+                  alert(`Failed to create application: ${error.message}`);
+                }
+              });
+            },
+            onError: (error) => {
+              alert(`Verification failed: ${error.message}`);
+            }
+          });
         }}
         email={email}
-        onResend={() => console.log('Resend OTP')}
+        onResend={() => {
+          sendOtpMutation.mutate({ email }, {
+            onSuccess: () => {
+              alert('OTP resent successfully!');
+            },
+            onError: (error) => {
+              alert(`Failed to resend OTP: ${error.message}`);
+            }
+          });
+        }}
       />
     </div>
   );
