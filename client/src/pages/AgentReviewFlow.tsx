@@ -76,7 +76,8 @@ export default function AgentReviewFlow({
   const handleNext = async () => {
     if (currentStep === 1) {
       // Step 1: Assign application to agent
-      if (application.status === 'pending') {
+      // Only assign if not already assigned to this agent
+      if (!application.assignedAgentId || application.assignedAgentId !== agentId) {
         try {
           const updatedApp = await assignMutation.mutateAsync({
             applicationId: application.id,
@@ -92,7 +93,7 @@ export default function AgentReviewFlow({
           alert('Failed to assign application. Please try again.');
         }
       } else {
-        // Already assigned, just move forward
+        // Already assigned to this agent, just move forward
         setCurrentStep(2);
       }
     } else if (currentStep === 2) {
