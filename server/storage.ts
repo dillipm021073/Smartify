@@ -475,11 +475,28 @@ export class DatabaseStorage implements IStorage {
   async createPrivacyPreferences(data: InsertPrivacyPreferences): Promise<void> {
     const { randomUUID } = await import("crypto");
     const now = new Date();
-    await db.insert(schema.privacyPreferences).values({
-      id: randomUUID(),
-      createdAt: now,
-      ...data
-    });
+
+    // Check if privacy preferences already exist for this application
+    const existing = await db
+      .select()
+      .from(schema.privacyPreferences)
+      .where(eq(schema.privacyPreferences.applicationId, data.applicationId))
+      .limit(1);
+
+    if (existing.length > 0) {
+      // Update existing privacy preferences
+      await db
+        .update(schema.privacyPreferences)
+        .set(data)
+        .where(eq(schema.privacyPreferences.applicationId, data.applicationId));
+    } else {
+      // Insert new privacy preferences
+      await db.insert(schema.privacyPreferences).values({
+        id: randomUUID(),
+        createdAt: now,
+        ...data
+      });
+    }
   }
 
   async getPrivacyPreferencesByApplicationId(applicationId: string): Promise<any> {

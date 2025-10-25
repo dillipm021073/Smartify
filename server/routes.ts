@@ -783,15 +783,29 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const { id } = req.params;
       const privacyData = req.body;
 
+      console.log('Saving privacy preferences for application:', id);
+      console.log('Privacy data:', privacyData);
+
+      // Verify application exists
+      const application = await storage.getApplicationById(id);
+      if (!application) {
+        return res.status(404).json({ error: "Application not found" });
+      }
+
       await storage.createPrivacyPreferences({
         applicationId: id,
         ...privacyData,
       });
 
+      console.log('Privacy preferences saved successfully');
       res.json({ success: true });
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error creating privacy preferences:", error);
-      res.status(500).json({ error: "Failed to save privacy preferences" });
+      const errorMessage = error.message || "Failed to save privacy preferences";
+      res.status(500).json({
+        error: "Failed to save privacy preferences",
+        details: errorMessage
+      });
     }
   });
 
